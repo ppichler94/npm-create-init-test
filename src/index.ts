@@ -91,7 +91,7 @@ const TEMPLATE_NAMES = TEMPLATES.map((t) => t.name)
 
 async function init() {
     const argTargetDir = formatTargetDir(argv._[0])
-    const argTemplate = argv.template || argv.t
+    const argTemplate = argv.template ?? argv.t
 
     const help = argv.help
     if (help) {
@@ -104,7 +104,6 @@ async function init() {
         targetDir === '.' ? path.basename(path.resolve()) : targetDir
 
     if (argv.update && targetDir !== '.' && !fs.existsSync(targetDir)) {
-        console.log(red('✖') + 'Target dir does not exist. Specify an existing project to update')
         return
     }
 
@@ -222,8 +221,9 @@ async function init() {
         }
         fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2))
     } else {
+        const chosenTemplate = template?.name ?? argTemplate
         console.log(`\nScaffolding project in ${root}...`)
-        console.log(`\nUsing template: ${template.name}`)
+        console.log(`\nUsing template: ${chosenTemplate}`)
 
         const pkg = { name: packageName || getProjectName(), version: '0.0.0' }
         fs.writeFileSync(path.resolve(root, 'package.json'), JSON.stringify(pkg, null, 2))
