@@ -3,42 +3,7 @@ import {cyan, green, red, reset, yellow} from "kolorist"
 import prompts from "prompts"
 import * as fs from "node:fs"
 import * as path from "node:path"
-
-function formatTargetDir(targetDir: string | undefined) {
-    return targetDir?.trim().replace(/\/+$/g, '')
-}
-
-function isEmpty(path: string) {
-    const files = fs.readdirSync(path)
-    return files.length === 0 || (files.length === 1 && files[0] === '.git')
-}
-
-function emptyDir(dir: string) {
-    if (!fs.existsSync(dir)) {
-        return
-    }
-    for (const file of fs.readdirSync(dir)) {
-        if (file === '.git') {
-            continue
-        }
-        fs.rmSync(path.resolve(dir, file), { recursive: true, force: true })
-    }
-}
-
-function isValidPackageName(projectName: string) {
-    return /^(?:@[a-z\d\-*~][a-z\d\-*._~]*\/)?[a-z\d\-~][a-z\d\-._~]*$/.test(
-        projectName,
-    )
-}
-
-function toValidPackageName(projectName: string) {
-    return projectName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/^[._]/, '')
-        .replace(/[^a-z\d\-~]+/g, '-')
-}
+import {emptyDir, formatTargetDir, isEmpty, isValidPackageName, toValidPackageName} from "./util";
 
 const argv = minimist<{
     template?: string
@@ -89,6 +54,25 @@ const TEMPLATES = [
 
 const TEMPLATE_NAMES = TEMPLATES.map((t) => t.name)
 
+function updatePackageJson(root: string) {
+    console.log(`\nUpdating project: ${root}`)
+    const pkgFile = path.resolve(root, 'package.json')
+    const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'))
+    pkg.dependencies = {
+        ...pkg.dependencies,
+        postcss: '8.4.x'
+    }
+    fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2))
+}
+
+function renderTemplate(root: string, chosenTemplate: string, packageName: string) {
+    console.log(`\nScaffolding project in ${root}...`)
+    console.log(`\nUsing template: ${chosenTemplate}`)
+
+    const pkg = {name: packageName, version: '0.0.0'}
+    fs.writeFileSync(path.resolve(root, 'package.json'), JSON.stringify(pkg, null, 2))
+}
+
 async function init() {
     const argTargetDir = formatTargetDir(argv._[0])
     const argTemplate = argv.template ?? argv.t
@@ -99,7 +83,7 @@ async function init() {
         return
     }
 
-    let targetDir = argTargetDir || defaultTargetDir
+    let targetDir = argTargetDir ?? defaultTargetDir
     const getProjectName = () =>
         targetDir === '.' ? path.basename(path.resolve()) : targetDir
 
@@ -182,9 +166,8 @@ async function init() {
                             : reset('Select a template:'),
                     initial: 0,
                     choices: TEMPLATES.map((template) => {
-                        const frameworkColor = template.color
                         return {
-                            title: frameworkColor(template.display || template.name),
+                            title: template.color(template.display || template.name),
                             value: template,
                         }
                     }),
@@ -212,21 +195,10 @@ async function init() {
     }
 
     if (overwrite === 'update') {
-        console.log(`\nUpdating project: ${root}`)
-        const pkgFile = path.resolve(root, 'package.json')
-        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'))
-        pkg.dependencies = {
-            ...pkg.dependencies,
-            postcss: '8.4.x'
-        }
-        fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2))
+        updatePackageJson(root);
     } else {
         const chosenTemplate = template?.name ?? argTemplate
-        console.log(`\nScaffolding project in ${root}...`)
-        console.log(`\nUsing template: ${chosenTemplate}`)
-
-        const pkg = { name: packageName || getProjectName(), version: '0.0.0' }
-        fs.writeFileSync(path.resolve(root, 'package.json'), JSON.stringify(pkg, null, 2))
+        renderTemplate(root, chosenTemplate, packageName ?? getProjectName());
     }
 }
 
