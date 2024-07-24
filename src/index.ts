@@ -3,7 +3,7 @@ import {cyan, green, red, reset, yellow} from "kolorist"
 import prompts from "prompts"
 import * as fs from "node:fs"
 import * as path from "node:path"
-import {emptyDir, formatTargetDir, isEmpty, isValidPackageName, toValidPackageName} from "./util";
+import {copy, emptyDir, formatTargetDir, isEmpty, isValidPackageName, toValidPackageName} from "./util";
 
 const argv = minimist<{
     template?: string
@@ -69,7 +69,15 @@ function renderTemplate(root: string, chosenTemplate: string, packageName: strin
     console.log(`\nScaffolding project in ${root}...`)
     console.log(`\nUsing template: ${chosenTemplate}`)
 
-    const pkg = {name: packageName, version: '0.0.0'}
+    const templateDir = path.resolve(__dirname, 'template')
+    copy(path.join(templateDir, chosenTemplate), root)
+
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(templateDir, 'package.json'), 'utf-8'))
+    pkg.dependencies = {
+        ...pkg.dependencies,
+        postcss: '8.4.x'
+    }
+    pkg.name = packageName
     fs.writeFileSync(path.resolve(root, 'package.json'), JSON.stringify(pkg, null, 2))
 }
 
