@@ -1,6 +1,6 @@
 {
   "name": "@ppichler94/create-init-test",
-  "version": "0.0.0",
+  "version": "0.0.9",
   "main": "index.js",
   "type": "module",
   "bin": {

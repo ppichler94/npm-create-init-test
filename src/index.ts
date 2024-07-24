@@ -1,8 +1,8 @@
-import minimist from "minimist";
-import {cyan, green, red, reset, yellow} from "kolorist";
-import prompts from "prompts";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import minimist from "minimist"
+import {cyan, green, red, reset, yellow} from "kolorist"
+import prompts from "prompts"
+import * as fs from "node:fs"
+import * as path from "node:path"
 
 function formatTargetDir(targetDir: string | undefined) {
     return targetDir?.trim().replace(/\/+$/g, '')
@@ -53,13 +53,14 @@ const cwd = process.cwd()
 
 // prettier-ignore
 const helpMessage = `\
-Usage: create-vite [OPTION]... [DIRECTORY]
+Usage: create-init-test [OPTION]... [DIRECTORY]
 
-Create a new Vite project in JavaScript or TypeScript.
+Create a new JavaScript project.
 With no arguments, start the CLI in interactive mode.
 
 Options:
   -t, --template NAME        use a specific template
+  -u, --update               update the dependencies of an existing project
 
 Available templates:
 ${yellow   ('vanilla')}
@@ -102,24 +103,29 @@ async function init() {
     const getProjectName = () =>
         targetDir === '.' ? path.basename(path.resolve()) : targetDir
 
+    if (argv.update && targetDir !== '.' && !fs.existsSync(targetDir)) {
+        console.log(red('✖') + 'Target dir does not exist. Specify an existing project to update')
+        return
+    }
+
     let result: prompts.Answers<
         'projectName' | 'overwrite' | 'packageName' | 'template'
     >
 
     prompts.override({
-        overwrite: argv.overwrite,
-        update: argv.update,
+        overwrite: argv.update ? 'update' : undefined,
     })
 
     try {
         result = await prompts(
             [
                 {
-                    type: argTargetDir ? null : 'text',
+                    type: argTargetDir || argv.update ? null : 'text',
                     name: 'projectName',
                     message: reset('Project name:'),
                     initial: defaultTargetDir,
                     onState: (state) => {
+                        console.log(`projectName state change: ${state.value}`)
                         targetDir = formatTargetDir(state.value) || defaultTargetDir
                     },
                 },
@@ -143,8 +149,8 @@ async function init() {
                             value: 'no',
                         },
                         {
-                            title: 'Ignore files and continue',
-                            value: 'ignore',
+                            title: 'Update files',
+                            value: 'update',
                         },
                     ],
                 },
@@ -158,7 +164,7 @@ async function init() {
                     name: 'overwriteChecker',
                 },
                 {
-                    type: () => (isValidPackageName(getProjectName()) ? null : 'text'),
+                    type: (_, { overwrite }: { overwrite?: string }) => (isValidPackageName(getProjectName()) || overwrite === 'update' ? null : 'text'),
                     name: 'packageName',
                     message: reset('Package name:'),
                     initial: () => toValidPackageName(getProjectName()),
@@ -166,8 +172,8 @@ async function init() {
                         isValidPackageName(dir) || 'Invalid package.json name',
                 },
                 {
-                    type:
-                        argTemplate && TEMPLATE_NAMES.includes(argTemplate) ? null : 'select',
+                    type: (_, { overwrite }: { overwrite?: string }) =>
+                        (argTemplate && TEMPLATE_NAMES.includes(argTemplate)) || overwrite === 'update' ? null : 'select',
                     name: 'template',
                     message:
                         typeof argTemplate === 'string' && !TEMPLATE_NAMES.includes(argTemplate)
@@ -206,12 +212,22 @@ async function init() {
         fs.mkdirSync(root, { recursive: true })
     }
 
-    console.log(`\nScaffolding project in ${root}...`)
+    if (overwrite === 'update') {
+        console.log(`\nUpdating project: ${root}`)
+        const pkgFile = path.resolve(root, 'package.json')
+        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf-8'))
+        pkg.dependencies = {
+            ...pkg.dependencies,
+            postcss: '8.4.x'
+        }
+        fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2))
+    } else {
+        console.log(`\nScaffolding project in ${root}...`)
+        console.log(`\nUsing template: ${template.name}`)
 
-    console.log(`\nUsing template: ${template}`)
-
-    const pkg = { name: packageName, version: '0.0.0' }
-    fs.writeFileSync(path.resolve(root, 'package.json'), JSON.stringify(pkg, null, 2))
+        const pkg = { name: packageName || getProjectName(), version: '0.0.0' }
+        fs.writeFileSync(path.resolve(root, 'package.json'), JSON.stringify(pkg, null, 2))
+    }
 }
 
 init().catch((e) => {
